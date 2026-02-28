@@ -1,0 +1,14 @@
+{
+  "users": {
+    "admin": {
+      "name": "chainakon",
+      "password": "12345",
+      "role": "teacher"
+    },
+    "student01": {
+      "name": "thana",
+      "password": "12345",
+      "role": "student"
+    }
+  }
+}

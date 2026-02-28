@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ref, onValue, set } from 'firebase/database';
 import { db } from '../firebase';
+import { Save } from 'lucide-react'; // เพิ่มไอคอน Save
 
 const days = ['จันทร์', 'อังคาร', 'พุธ', 'พฤหัส', 'ศุกร์'];
 const periods = [1, 2, 3, 4, 5, 6];
@@ -12,6 +13,8 @@ const termOptions = [
 export default function EditSchedule() {
   const [term, setTerm] = useState('1-2568');
   const [schedule, setSchedule] = useState({});
+  const [isVisible, setIsVisible] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // เพิ่ม State สำหรับปุ่มโหลด
 
   useEffect(() => {
     const scheduleRef = ref(db, `schedules/${term}`);
@@ -20,98 +23,143 @@ export default function EditSchedule() {
     });
   }, [term]);
 
-const handleChange = (day, periodIndex, value) => {
-  const updated = { ...schedule };
-  if (!updated[day]) updated[day] = [];
-  updated[day][periodIndex] = value;
-  setSchedule(updated);
-};
+  useEffect(() => {
+    const timer = setTimeout(() => setIsVisible(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
-
-
-  const handleSave = () => {
-    set(ref(db, `schedules/${term}`), schedule);
-    alert('บันทึกตารางเรียนแล้ว');
+  const handleChange = (day, periodIndex, value) => {
+    const updated = { ...schedule };
+    if (!updated[day]) updated[day] = [];
+    updated[day][periodIndex] = value;
+    setSchedule(updated);
   };
 
-
-
-  const [isVisible, setIsVisible] = useState(false);
-
-useEffect(() => {
-  const timer = setTimeout(() => setIsVisible(true), 100); // รอ 100ms ก่อนโชว์
-  return () => clearTimeout(timer);
-}, []);
-
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      await set(ref(db, `schedules/${term}`), schedule);
+      // เปลี่ยนจาก alert ธรรมดา เป็นให้ปุ่มกลับมาสถานะเดิม
+      setTimeout(() => {
+        setIsSaving(false);
+        alert('บันทึกตารางเรียนเรียบร้อยแล้ว');
+      }, 500);
+    } catch (error) {
+      console.error(error);
+      setIsSaving(false);
+      alert('เกิดข้อผิดพลาดในการบันทึก');
+    }
+  };
 
   return (
     <div
-  className={`p-4 transition-opacity transition-transform duration-700 ease-out ${
-    isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-5'
-  }`}
->
-      <h1 className="text-2xl font-bold text-blue-600 mb-4">จัดตารางเรียน</h1>
-
-   <div className="flex justify-end mb-4 pr-4">
-  <div className="relative w-40">
-    <select
-      value={term}
-      onChange={(e) => setTerm(e.target.value)}
-      className="w-full appearance-none border border-gray-300 px-3 py-2 rounded-2xl shadow-sm bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+      className={`p-2 md:p-4 transition-all duration-1000 ease-out transform ${
+        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+      }`}
     >
-      {termOptions.map((t) => (
-        <option key={t.value} value={t.value}>
-          {t.label}
-        </option>
-      ))}
-    </select>
-    {/* ลูกศร ▼ */}
-    <div className="pointer-events-none absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
-      ▼
-    </div>
-  </div>
-</div>
+      {/* Header สไตล์ Apple */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-extrabold text-[#1d1d1f] tracking-tight drop-shadow-sm mb-2">
+            จัดตารางเรียน
+          </h1>
+          <p className="text-slate-500 font-medium">แก้ไขรายวิชาและชั้นเรียนในแต่ละคาบ</p>
+        </div>
 
-
-      <div className="overflow-auto border rounded-lg">
-        <table className="min-w-full text-center table-fixed border-collapse">
-          <thead>
-            <tr className="bg-blue-100">
-              <th className="border p-2 w-20">วัน/คาบ</th>
-              {periods.map((p) => (
-                <th key={p} className="border p-2 w-28">คาบ {p}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {days.map((day) => (
-              <tr key={day}>
-                <td className="border font-medium p-2 bg-blue-50">{day}</td>
-                {periods.map((_, i) => (
-                  <td key={i} className="border p-2">
-                    <input
-  type="text"
-  value={schedule?.[day]?.[i] || ''}
-  onChange={(e) => handleChange(day, i, e.target.value)}
-  className="w-full px-2 py-1 border rounded"
-  placeholder="เช่น คณิตศาสตร์ ป.6"
-/>
-
-
-                  </td>
-                ))}
-              </tr>
+        {/* เลือกเทอม (Glass Dropdown) */}
+        <div className="relative group w-full md:w-auto">
+          <select
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            className="w-full md:w-52 appearance-none px-6 py-3 rounded-2xl bg-white/40 backdrop-blur-md border border-white/80 shadow-[0_2px_10px_rgba(0,0,0,0.02)] text-[#1d1d1f] font-bold tracking-tight focus:outline-none focus:bg-white/70 focus:ring-4 focus:ring-white/50 transition-all duration-300 cursor-pointer hover:bg-white/60 text-sm"
+          >
+            {termOptions.map((t) => (
+              <option key={t.value} value={t.value} className="text-slate-800 font-medium">
+                {t.label}
+              </option>
             ))}
-          </tbody>
-        </table>
+          </select>
+          <div className="pointer-events-none absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 group-hover:text-blue-500 transition-colors">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+        </div>
       </div>
 
-      <button
-        onClick={handleSave}
-        className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-2xl hover:bg-blue-700"
-      >
-        บันทึกตารางเรียน
-      </button>
+      {/* กล่องตาราง (Main Liquid Glass Container) */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-white/30 backdrop-blur-2xl border border-white/70 shadow-[0_20px_50px_rgba(0,0,0,0.05)] mb-8">
+        
+        {/* เอฟเฟกต์สะท้อนแสงผิวกระจกด้านบน */}
+        <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-white/60 to-transparent pointer-events-none"></div>
+
+        <div className="overflow-x-auto relative z-10 p-1 md:p-3">
+          <table className="min-w-[900px] w-full text-center table-fixed border-collapse">
+            <thead>
+              <tr className="bg-white/40 backdrop-blur-md">
+                <th className="border-b border-r border-white/50 p-4 w-28 rounded-tl-[2rem]">
+                  <span className="font-extrabold text-[#1d1d1f] tracking-tight">วัน / คาบ</span>
+                </th>
+                {periods.map((p, idx) => (
+                  <th key={p} className={`border-b border-white/50 p-4 w-32 ${idx !== periods.length - 1 ? 'border-r' : 'rounded-tr-[2rem]'}`}>
+                    <span className="font-extrabold text-[#1d1d1f] tracking-tight">คาบ {p}</span>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            
+            <tbody>
+              {days.map((day, rowIndex) => (
+                <tr key={day} className="transition-colors duration-300 hover:bg-white/10">
+                  
+                  {/* คอลัมน์ "วัน" */}
+                  <td className={`border-b border-r border-white/40 p-4 font-extrabold tracking-tight text-[#1d1d1f] ${
+                    rowIndex === days.length - 1 ? 'rounded-bl-[2rem] border-b-0' : ''
+                  }`}>
+                    {day}
+                  </td>
+
+                  {/* ช่องกรอกข้อมูล คาบ 1-6 */}
+                  {periods.map((_, i) => {
+                    const isLastCell = rowIndex === days.length - 1 && i === periods.length - 1;
+                    return (
+                      <td 
+                        key={i} 
+                        className={`p-2 align-middle ${
+                          isLastCell ? 'border-none' : 'border-b border-r border-white/40'
+                        } ${rowIndex === days.length - 1 && !isLastCell ? 'border-b-0' : ''}`}
+                      >
+                        {/* ช่อง Input แบบเจาะลึก (Inset Glass) */}
+                        <input
+                          type="text"
+                          value={schedule?.[day]?.[i] || ''}
+                          onChange={(e) => handleChange(day, i, e.target.value)}
+                          placeholder="วิชา ชั้น"
+                          className="w-full px-3 py-3 bg-white/40 border border-white/60 rounded-xl text-slate-800 placeholder:text-slate-400 focus:bg-white focus:border-blue-400 focus:ring-4 focus:ring-blue-100 outline-none transition-all duration-300 shadow-[inset_0_2px_5px_rgba(0,0,0,0.02)] text-sm font-semibold text-center hover:bg-white/60"
+                        />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ปุ่มบันทึก */}
+      <div className="flex justify-end">
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white px-8 py-4 rounded-2xl shadow-lg shadow-blue-500/20 font-bold transition-all duration-300 transform hover:-translate-y-1 active:translate-y-0 disabled:opacity-70 disabled:transform-none disabled:cursor-not-allowed"
+        >
+          {isSaving ? (
+            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+          ) : (
+            <Save size={20} strokeWidth={2.5} />
+          )}
+          {isSaving ? 'กำลังบันทึก...' : 'บันทึกตารางเรียน'}
+        </button>
+      </div>
     </div>
   );
 }
