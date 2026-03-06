@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import EditSchedule from './pages/EditSchedule';
 import DepositPage from './pages/DepositManager';
 import Login from './pages/Login';
+import Landing from './pages/Landing';
 
 import {
   ClipboardList,
@@ -73,7 +74,9 @@ function App() {
     return (
       <Router>
         <Routes>
-          <Route path="*" element={<Login />} />
+          <Route path="/" element={<Landing />} />      {/* หน้าเริ่มต้น (ไอคอนลอย) */}
+          <Route path="/login" element={<Login />} />   {/* หน้าฟอร์มกรอกรหัส */}
+          <Route path="*" element={<Landing />} />      {/* กันคนพิมพ์ URL ผิด ให้กลับมาหน้าแรก */}
         </Routes>
       </Router>
     );

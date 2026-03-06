@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../firebase';
 import { ref, onValue } from 'firebase/database';
-import { CalendarDays, Users, X, Clock, ClipboardCheck, UserCircle2 } from 'lucide-react';
+import { CalendarDays, Users, X, Clock, ClipboardCheck, UserCircle2, Download } from 'lucide-react';
+import * as XLSX from 'xlsx'; // เพิ่ม Import XLSX
 
 export default function CheckInHistory() {
   const [history, setHistory] = useState({});
@@ -33,7 +34,7 @@ export default function CheckInHistory() {
     return () => clearTimeout(timer);
   }, []);
 
-  const extractMonth = (dateStr) => dateStr.slice(0, 7); // "2025-05"
+  const extractMonth = (dateStr) => dateStr.slice(0, 7);
 
   const monthOptions = Array.from(
     new Set(Object.keys(history).map(extractMonth))
@@ -66,9 +67,63 @@ export default function CheckInHistory() {
     return data;
   };
 
-  // ฟังก์ชันช่วยทำสีป้ายสถานะ (Badge)
+  // ================= เพิ่มฟังก์ชัน Export Excel =================
+  const exportToExcel = () => {
+    const studentHistory = getStudentHistory();
+    const exportData = [];
+
+    // วนลูปรายชื่อนักเรียนทั้งหมดที่มีในระบบ เพื่อสรุปยอด
+    Object.keys(students).forEach(studentId => {
+      const student = students[studentId];
+      const records = studentHistory[studentId] || []; // ดึงประวัติ ถ้าไม่มีให้เป็น array ว่าง
+
+      let present = 0, late = 0, leave = 0, absent = 0;
+
+      // นับสถิติ
+      records.forEach(r => {
+        if (['มา', 'มาเรียน', 'ปกติ', 'present'].includes(r.status)) present++;
+        else if (['สาย', 'late'].includes(r.status)) late++;
+        else if (['ลา', 'ลากิจ', 'ลาป่วย', 'leave'].includes(r.status)) leave++;
+        else if (['ขาด', 'ขาดเรียน', 'absent'].includes(r.status)) absent++;
+      });
+
+      exportData.push({
+        'รหัสนักเรียน': student.studentId || studentId,
+        'ชื่อ-นามสกุล': student.name || 'ไม่ระบุ',
+        'ชั้นเรียน': student.grade || 'ไม่ระบุ',
+        'มาเรียน (ครั้ง)': present,
+        'มาสาย (ครั้ง)': late,
+        'ลา (ครั้ง)': leave,
+        'ขาดเรียน (ครั้ง)': absent,
+        'รวมคาบทั้งหมด': present + late + leave + absent
+      });
+    });
+
+    // เรียงลำดับตามชั้นเรียน และ ชื่อ
+    exportData.sort((a, b) => {
+      if (a['ชั้นเรียน'] === b['ชั้นเรียน']) {
+        return a['ชื่อ-นามสกุล'].localeCompare(b['ชื่อ-นามสกุล']);
+      }
+      return a['ชั้นเรียน'].localeCompare(b['ชั้นเรียน']);
+    });
+
+    // สร้าง Workbook และ Worksheet
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "สรุปการเข้าเรียน");
+
+    // ตั้งชื่อไฟล์ตามเดือนที่เลือก หรือตั้งเป็น All ถ้าไม่ได้เลือกเดือน
+    const fileName = selectedMonth 
+      ? `สรุปการเข้าเรียน_${formatThaiMonth(selectedMonth).replace(' ', '_')}.xlsx` 
+      : `สรุปการเข้าเรียน_ทั้งหมด.xlsx`;
+
+    // ดาวน์โหลดไฟล์
+    XLSX.writeFile(workbook, fileName);
+  };
+  // =======================================================
+
   const renderStatusBadge = (status) => {
-    let colorClass = "bg-slate-100 text-slate-600 border-slate-200"; // Default
+    let colorClass = "bg-slate-100 text-slate-600 border-slate-200"; 
     if (['มา', 'มาเรียน', 'ปกติ', 'present'].includes(status)) {
       colorClass = "bg-emerald-50 text-emerald-600 border-emerald-200";
     } else if (['ขาด', 'ขาดเรียน', 'absent'].includes(status)) {
@@ -96,7 +151,6 @@ export default function CheckInHistory() {
         isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
       }`}
     >
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
         <div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-[#1d1d1f] tracking-tight drop-shadow-sm mb-2">
@@ -105,8 +159,8 @@ export default function CheckInHistory() {
           <p className="text-slate-500 font-medium">ดูบันทึกการเข้าเรียนย้อนหลัง และสรุปประวัติรายบุคคล</p>
         </div>
 
-        {/* ตัวกรองและปุ่ม (Glass Controls) */}
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          {/* ตัวกรองเดือน */}
           <div className="relative group w-full sm:w-auto">
             <select
               value={selectedMonth}
@@ -125,17 +179,31 @@ export default function CheckInHistory() {
             </div>
           </div>
 
-          <button
-            onClick={() => setShowStudentModal(true)}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white px-5 py-3 rounded-2xl shadow-lg shadow-blue-500/20 font-bold transition-all duration-300 transform hover:-translate-y-0.5"
-          >
-            <Users size={18} strokeWidth={2.5} />
-            สรุปรายบุคคล
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            {/* ปุ่มสรุปรายบุคคล */}
+            <button
+              onClick={() => setShowStudentModal(true)}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white px-5 py-3 rounded-2xl shadow-lg shadow-blue-500/20 font-bold transition-all duration-300 transform hover:-translate-y-0.5 text-sm"
+            >
+              <Users size={18} strokeWidth={2.5} />
+              <span className="hidden sm:inline">สรุปรายบุคคล</span>
+              <span className="sm:hidden">สรุป</span>
+            </button>
+
+            {/* ปุ่ม Export Excel (สีเขียวสไตล์ Apple) */}
+            <button
+              onClick={exportToExcel}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-white px-5 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 font-bold transition-all duration-300 transform hover:-translate-y-0.5 text-sm"
+            >
+              <Download size={18} strokeWidth={2.5} />
+              <span className="hidden sm:inline">ส่งออก Excel</span>
+              <span className="sm:hidden">Excel</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main History List (เรียงตามวันที่) */}
+      {/* Main History List */}
       <div className="space-y-6">
         {filteredHistory.length === 0 ? (
           <div className="text-center py-20 bg-white/30 backdrop-blur-md rounded-[2.5rem] border border-white/60 shadow-sm">
@@ -197,16 +265,14 @@ export default function CheckInHistory() {
         )}
       </div>
 
-      {/* ================= MODAL: ประวัตินักเรียนรายบุคคล ================= */}
+      {/* Modal ประวัตินักเรียนรายบุคคล คงเดิม... */}
       {showStudentModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm transition-opacity animate-fade-in"
             onClick={() => setShowStudentModal(false)}
           ></div>
           
-          {/* Modal Container */}
           <div className="relative bg-white/80 backdrop-blur-2xl border border-white rounded-[2.5rem] shadow-[0_20px_60px_rgba(0,0,0,0.1)] p-6 md:p-8 w-full max-w-4xl max-h-[85vh] overflow-hidden flex flex-col animate-fade-in">
             
             <button

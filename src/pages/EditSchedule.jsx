@@ -11,7 +11,7 @@ const termOptions = [
 ];
 
 export default function EditSchedule() {
-  const [term, setTerm] = useState('1-2568');
+  const [term, setTerm] = useState('2-2568');
   const [schedule, setSchedule] = useState({});
   const [isVisible, setIsVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false); // เพิ่ม State สำหรับปุ่มโหลด
